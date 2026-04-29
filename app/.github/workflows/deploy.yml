@@ -1,0 +1,65 @@
+# QXwap - Deploy to Render.com
+# 
+# Setup:
+# 1. Push this repo to GitHub
+# 2. Go to https://dashboard.render.com/blueprints
+# 3. Click "New Blueprint Instance"
+# 4. Connect your GitHub repo
+# 5. Render will read render.yaml and create all services automatically
+#
+# Alternative: Manual deploy via Git push
+# 1. Create Web Service on Render
+# 2. Connect GitHub repo
+# 3. Set:
+#    - Runtime: Docker
+#    - Branch: main
+#    - Root Directory: (leave empty)
+#    - Dockerfile Path: ./Dockerfile
+# 4. Add environment variables (see below)
+# 5. Click "Create Web Service"
+#
+# Required Environment Variables:
+# - DATABASE_URL: postgresql://user:pass@host:5432/dbname
+# - SESSION_SECRET: random-secret-key-min-32-chars
+# - FRONTEND_ORIGIN: https://your-frontend-domain.com
+# - NODE_ENV: production
+# - PORT: 3000
+
+name: Deploy
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run check
+
+      - name: Build
+        run: npm run build
+
+      - name: Test backend health (local)
+        run: |
+          NODE_ENV=production node dist/boot.js &
+          sleep 5
+          curl -f http://localhost:3000/api/health || exit 1
+          kill %1
+
+      # Uncomment below after setting up Render deploy hook
+      # - name: Deploy to Render
+      #   run: |
+      #     curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
